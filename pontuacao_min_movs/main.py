@@ -1,8 +1,41 @@
 import pandas as pd
 from collections import deque
 import copy
+import logging
+from typing import List, Tuple, Set, Optional
+import os
 
-def string_para_estado(s):
+# Configuração de logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+
+# Constantes
+NUM_PINOS = 3
+PONTUACAO_INICIAL = 10
+PONTUACAO_MINIMA = 0
+
+class EstadoInvalidoError(Exception):
+    """Exceção lançada quando um estado é inválido."""
+    pass
+
+def string_para_estado(s: str) -> List[List[str]]:
+    """
+    Converte uma string no formato '|A|B|C|' para uma lista de listas representando o estado.
+    
+    Args:
+        s: String no formato '|A|B|C|' onde cada letra representa uma bola
+        
+    Returns:
+        Lista de listas representando o estado dos pinos
+        
+    Raises:
+        EstadoInvalidoError: Se a string não estiver no formato correto
+    """
+    if not s or not s.startswith('|'):
+        raise EstadoInvalidoError("String de estado deve começar com '|'")
+        
     partes = s.split('|')[1:]  # Remove o primeiro item vazio antes do primeiro '|'
     
     # Remove o último elemento vazio apenas se ele for causado por um '|' final extra
@@ -11,14 +44,29 @@ def string_para_estado(s):
     
     return [list(pino) for pino in partes]
 
-
-
-# Transforma um estado em uma tupla imutável para poder usar em sets
-def estado_para_tupla(estado):
+def estado_para_tupla(estado: List[List[str]]) -> Tuple[Tuple[str, ...], ...]:
+    """
+    Transforma um estado em uma tupla imutável para poder usar em sets.
+    
+    Args:
+        estado: Lista de listas representando o estado dos pinos
+        
+    Returns:
+        Tupla de tuplas representando o estado
+    """
     return tuple(tuple(pino) for pino in estado)
 
-# Gera todos os próximos estados válidos
-def movimentos_possiveis(estado, altura_max):
+def movimentos_possiveis(estado: List[List[str]], altura_max: int) -> List[List[List[str]]]:
+    """
+    Gera todos os próximos estados válidos a partir do estado atual.
+    
+    Args:
+        estado: Estado atual dos pinos
+        altura_max: Altura máxima permitida para cada pino
+        
+    Returns:
+        Lista de estados possíveis após um movimento
+    """
     estados = []
     for i in range(len(estado)):
         if not estado[i]:  # Pula pinos vazios
@@ -32,120 +80,178 @@ def movimentos_possiveis(estado, altura_max):
                 estados.append(novo_estado)
     return estados
 
-# Normaliza o tamanho dos estados para que tenham exatamente 3 pinos, preservando a posição dos pinos vazios
-def normalizar_estados(estado_inicial, estado_final):
-    num_pinos = 3  # Número fixo de pinos
-
-    # Verifica se o estado inicial tem menos de 3 pinos e adiciona pinos vazios na posição correta
-    while len(estado_inicial) < num_pinos:
+def normalizar_estados(estado_inicial: List[List[str]], estado_final: List[List[str]]) -> Tuple[List[List[str]], List[List[str]]]:
+    """
+    Normaliza o tamanho dos estados para que tenham exatamente 3 pinos.
+    
+    Args:
+        estado_inicial: Estado inicial dos pinos
+        estado_final: Estado final dos pinos
+        
+    Returns:
+        Tupla contendo os estados normalizados
+        
+    Raises:
+        EstadoInvalidoError: Se os estados não puderem ser normalizados
+    """
+    # Verifica se o estado inicial tem menos de 3 pinos e adiciona pinos vazios
+    while len(estado_inicial) < NUM_PINOS:
         estado_inicial.append([])
 
-    # Verifica se o estado final tem menos de 3 pinos e adiciona pinos vazios na posição correta
-    while len(estado_final) < num_pinos:
+    # Verifica se o estado final tem menos de 3 pinos e adiciona pinos vazios
+    while len(estado_final) < NUM_PINOS:
         estado_final.append([])
 
     # Garante que ambos os estados tenham exatamente 3 pinos
-    if len(estado_inicial) != num_pinos or len(estado_final) != num_pinos:
-        raise ValueError("Erro na normalização: o estado não tem exatamente 3 pinos!")
+    if len(estado_inicial) != NUM_PINOS or len(estado_final) != NUM_PINOS:
+        raise EstadoInvalidoError("Erro na normalização: o estado não tem exatamente 3 pinos!")
 
     return estado_inicial, estado_final
-# def movimentos_minimos(estado_inicial, estado_objetivo, altura_max):
-#     visitados = set()
-#     fila = deque([(estado_inicial, 0, [])])  # Adiciona histórico de passos
 
-#     while fila:
-#         estado_atual, passos, caminho = fila.popleft()
-#         estado_tupla = estado_para_tupla(estado_atual)
-#         if estado_tupla in visitados:
-#             continue
-#         visitados.add(estado_tupla)
-
-#         novo_caminho = caminho + [copy.deepcopy(estado_atual)]
-
-#         if estado_tupla == estado_para_tupla(estado_objetivo):
-#             print("\n🧩 Caminho encontrado em", passos, "passos:")
-#             for i, est in enumerate(novo_caminho):
-#                 print(f"Passo {i}: {est}")
-#             return passos
-
-#         for prox in movimentos_possiveis(estado_atual, altura_max):
-#             fila.append((prox, passos + 1, novo_caminho))
-
-#     return -1
-
-# Calcula a quantidade mínima de movimentos usando BFS
-def movimentos_minimos(estado_inicial, estado_objetivo, altura_max):
+def movimentos_minimos(estado_inicial: List[List[str]], estado_objetivo: List[List[str]], altura_max: int) -> int:
+    """
+    Calcula a quantidade mínima de movimentos necessários para atingir o estado objetivo.
     
+    Args:
+        estado_inicial: Estado inicial dos pinos
+        estado_objetivo: Estado objetivo dos pinos
+        altura_max: Altura máxima permitida para cada pino
+        
+    Returns:
+        Número mínimo de movimentos necessários, ou -1 se for impossível
+    """
+    # Verifica se o número total de bolas é igual
+    total_bolas_inicial = sum(len(pino) for pino in estado_inicial)
+    total_bolas_objetivo = sum(len(pino) for pino in estado_objetivo)
+    if total_bolas_inicial != total_bolas_objetivo:
+        return -1
 
-    visitados = set()
+    # Verifica se algum pino excede a altura máxima
+    for pino in estado_inicial:
+        if len(pino) > altura_max:
+            return -1
+    
+    for pino in estado_objetivo:
+        if len(pino) > altura_max:
+            return -1
+
+    # Verifica se o estado inicial e final são iguais
+    if estado_para_tupla(estado_inicial) == estado_para_tupla(estado_objetivo):
+        return 0
+
+    visitados = {}  # Dicionário para armazenar estados e seus passos
     fila = deque([(estado_inicial, 0)])
+    max_movimentos = 1000  # Limite máximo de movimentos para evitar loops infinitos
 
     while fila:
         estado_atual, passos = fila.popleft()
         estado_tupla = estado_para_tupla(estado_atual)
-        if estado_tupla in visitados:
+        
+        if passos > max_movimentos:
+            logging.warning("Limite máximo de movimentos atingido")
+            return -1
+            
+        if estado_tupla in visitados and visitados[estado_tupla] <= passos:
             continue
-        visitados.add(estado_tupla)
+            
+        visitados[estado_tupla] = passos
 
         if estado_tupla == estado_para_tupla(estado_objetivo):
             return passos
 
         for prox in movimentos_possiveis(estado_atual, altura_max):
-            fila.append((prox, passos + 1))
-
-    # print("Estado objetivo nunca alcançado:")
-    # print("Inicial:", estado_para_tupla(estado_inicial))
-    # print("Final:  ", estado_para_tupla(estado_objetivo))
+            # Verifica se o próximo estado excede a altura máxima
+            if any(len(pino) > altura_max for pino in prox):
+                continue
+                
+            prox_tupla = estado_para_tupla(prox)
+            if prox_tupla not in visitados or visitados[prox_tupla] > passos + 1:
+                fila.append((prox, passos + 1))
 
     return -1
 
-# Pontuação baseada na diferença entre movimentos feitos e mínimos
-def calcular_pontuacao(row, min_movs):
+def calcular_pontuacao(row: pd.Series, min_movs: int) -> int:
+    """
+    Calcula a pontuação baseada na diferença entre movimentos feitos e mínimos.
+    
+    Args:
+        row: Linha do DataFrame com os dados do jogo
+        min_movs: Número mínimo de movimentos necessários
+        
+    Returns:
+        Pontuação calculada
+    """
     if (row['done'] != 1) or min_movs == -1:
         return 0  # Nenhuma pontuação se não acertou
 
     extra_movs = row['step'] - min_movs
-    pontuacao = max(0, 10 - extra_movs)  # Pontuação inicial de 10, penalizada pelos movimentos extras
+    pontuacao = max(PONTUACAO_MINIMA, PONTUACAO_INICIAL - extra_movs)
 
     return pontuacao
 
-def main():
-    # === MAIN ===
-    df = pd.read_csv('C:/Users/thiag/OneDrive/Documentos/TOL/Scripts/pontuacao-TOL/pontuacao_min_movs/teste.xls', sep=',')
+def processar_arquivo(caminho_entrada: str, caminho_saida: str) -> None:
+    """
+    Processa o arquivo de entrada e gera o arquivo de saída com as pontuações.
+    
+    Args:
+        caminho_entrada: Caminho do arquivo de entrada
+        caminho_saida: Caminho do arquivo de saída
+    """
+    try:
+        df = pd.read_csv(caminho_entrada, sep=',')
+    except Exception as e:
+        logging.error(f"Erro ao ler arquivo de entrada: {e}")
+        raise
 
-    # Inicializa listas para novas colunas
     col_minimos = []
     col_pontuacao = []
-
-    # Variáveis auxiliares
     estado_inicial = None
     estado_final = None
 
     for idx, row in df.iterrows():
-        if row['step'] == 0:
-            estado_inicial = string_para_estado(row['current'])
-            estado_final = string_para_estado(row['end'])
-            print(f"Estado inicial: {estado_inicial}")
-            print(f"Estado final: {estado_final}")
+        try:
+            if row['step'] == 0:
+                estado_inicial = string_para_estado(row['current'])
+                estado_final = string_para_estado(row['end'])
+                logging.info(f"Estado inicial: {estado_inicial}")
+                logging.info(f"Estado final: {estado_final}")
+
+            if row['done'] == 1:
+                min_movs = movimentos_minimos(estado_inicial, estado_final, altura_max=row['size'])
+                logging.info(f"Movimentos mínimos: {min_movs}")
+                pontuacao = calcular_pontuacao(row, min_movs)
+            else:
+                min_movs = 0
+                pontuacao = 0
+
+            col_minimos.append(min_movs)
+            col_pontuacao.append(pontuacao)
             
+        except Exception as e:
+            logging.error(f"Erro ao processar linha {idx}: {e}")
+            col_minimos.append(-1)
+            col_pontuacao.append(0)
 
-        if row['done'] == 1:
-            min_movs = movimentos_minimos(estado_inicial, estado_final, altura_max=row['size'])
-            print(f"Movimentos mínimos: {min_movs}")
-            pontuacao = calcular_pontuacao(row, min_movs)
-        else:
-            min_movs = 0
-            pontuacao = 0
-
-        col_minimos.append(min_movs)
-        col_pontuacao.append(pontuacao)
-
-    # Adiciona colunas ao DataFrame
     df['movimentos_minimos'] = col_minimos
     df['pontuacao_acumulada'] = pd.Series(col_pontuacao).cumsum()
 
-    # Salva novo CSV
-    df.to_csv('C:/Users/thiag/OneDrive/Documentos/TOL/Scripts/pontuacao-TOL/pontuacao_min_movs/result_test.csv', index=False)
-    print("Pontuação acumulada e movimentos mínimos calculados e salvos com sucesso!")
+    try:
+        df.to_csv(caminho_saida, index=False)
+        logging.info("Pontuação acumulada e movimentos mínimos calculados e salvos com sucesso!")
+    except Exception as e:
+        logging.error(f"Erro ao salvar arquivo de saída: {e}")
+        raise
+
+def main():
+    """Função principal do programa."""
+    caminho_entrada = 'dados2.xls'
+    caminho_saida = 'tabela2_com_pontuacao_e_minimos.csv'
+    
+    try:
+        processar_arquivo(caminho_entrada, caminho_saida)
+    except Exception as e:
+        logging.error(f"Erro durante a execução: {e}")
+        raise
+
 if __name__ == "__main__":
     main()
