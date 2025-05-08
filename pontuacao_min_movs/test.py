@@ -62,17 +62,19 @@ def test_movimentos_minimos():
         # Teste 6: troca de lugares entre dois pinos (mínimo 3)
         ([['A'], ['B'], []], [['B'], ['A'], []], 1, 3),
         
-        # Teste 7: verificar simetria
+        # Teste 7: simetria (direita para esquerda)
         ([['A', 'B'], [], []], [[], [], ['A', 'B']], 2, 3),
+        
+        # Teste 8: simetria (esquerda para direita)
         ([[], [], ['A', 'B']], [['A', 'B'], [], []], 2, 3),
         
-        # Teste 8: caso com altura máxima 1
+        # Teste 9: caso com altura máxima 1
         ([['A'], ['B'], ['C']], [['C'], ['A'], ['B']], 1, -1),
         
-        # Teste 9: caso com altura máxima 3 e 4 bolas (impossível por exceder altura máxima)
+        # Teste 10: caso com altura máxima 3 e 4 bolas (impossível por exceder altura máxima)
         ([['A', 'B', 'C', 'D'], [], []], [[], [], ['A', 'B', 'C', 'D']], 3, -1),
         
-        # Teste 10: caso com altura máxima 4 e 4 bolas (possível)
+        # Teste 11: caso com altura máxima 4 e 4 bolas (possível)
         ([['A', 'B', 'C', 'D'], [], []], [[], [], ['A', 'B', 'C', 'D']], 4, 7),
     ]
     
